@@ -1,8 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f9f9f7;
+  --foreground: #0b0b0b;
+
+  /* dataviz tokens — see dataviz skill: references/palette.md */
+  color-scheme: light;
+  --viz-surface: #fcfcfb;
+  --viz-text-primary: #0b0b0b;
+  --viz-text-secondary: #52514e;
+  --viz-text-muted: #898781;
+  --viz-gridline: #e1e0d9;
+  --viz-baseline: #c3c2b7;
+  --viz-good: #006300;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-series-3: #1baf7a;
+  --viz-series-4: #eda100;
+  --viz-series-5: #e87ba4;
+  --viz-series-6: #008300;
+  --viz-series-7: #4a3aa7;
+  --viz-series-8: #e34948;
+  --viz-status-good: #0ca30c;
+  --viz-status-warning: #fab219;
+  --viz-status-serious: #ec835a;
+  --viz-status-critical: #d03b3b;
 }
 
 @theme inline {
@@ -13,14 +35,51 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:where(:not([data-theme="light"])) {
+    --background: #0d0d0d;
+    --foreground: #ffffff;
+    color-scheme: dark;
+    --viz-surface: #1a1a19;
+    --viz-text-primary: #ffffff;
+    --viz-text-secondary: #c3c2b7;
+    --viz-text-muted: #898781;
+    --viz-gridline: #2c2c2a;
+    --viz-baseline: #383835;
+    --viz-good: #0ca30c;
+    --viz-series-1: #3987e5;
+    --viz-series-2: #d95926;
+    --viz-series-3: #199e70;
+    --viz-series-4: #c98500;
+    --viz-series-5: #d55181;
+    --viz-series-6: #008300;
+    --viz-series-7: #9085e9;
+    --viz-series-8: #e66767;
   }
+}
+
+:root[data-theme="dark"] {
+  --background: #0d0d0d;
+  --foreground: #ffffff;
+  color-scheme: dark;
+  --viz-surface: #1a1a19;
+  --viz-text-primary: #ffffff;
+  --viz-text-secondary: #c3c2b7;
+  --viz-text-muted: #898781;
+  --viz-gridline: #2c2c2a;
+  --viz-baseline: #383835;
+  --viz-good: #0ca30c;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-series-3: #199e70;
+  --viz-series-4: #c98500;
+  --viz-series-5: #d55181;
+  --viz-series-6: #008300;
+  --viz-series-7: #9085e9;
+  --viz-series-8: #e66767;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }

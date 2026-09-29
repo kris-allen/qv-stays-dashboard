@@ -9,7 +9,7 @@ import {
   DEFAULT_MIDSTAY_RULE,
   type TrackedClean,
 } from "@/lib/cleans";
-import { getReservations } from "@/lib/hostaway";
+import { getListings, getReservations } from "@/lib/hostaway";
 import { readTab } from "@/lib/sheets";
 import { CLOSED_STATUSES, ISSUE_TABS, type IssueTab, type Row } from "@/lib/sheet-schema";
 
@@ -38,14 +38,20 @@ export const getProperties = cache(async (): Promise<Map<string, Property>> => {
 
 /** Every clean overlapping the window, with SE assignment and completion from the Cleans tab. */
 export const getCleans = cache(async (from: string, to: string): Promise<TrackedClean[]> => {
-  const [reservations, records, properties] = await Promise.all([
+  const [reservations, records, properties, listings] = await Promise.all([
     getReservations(from, to),
     readTab("Cleans"),
     getProperties(),
+    getListings(),
   ]);
+  // Hostaway reservations don't carry the listing name, so fall back to the listings feed.
+  const listingNames = new Map(listings.map((l) => [String(l.id), l.internalListingName || l.name]));
   const jobs = deriveCleans(reservations, midstayRule())
     .filter((j) => j.date >= from && j.date <= to)
-    .map((j) => ({ ...j, listingName: properties.get(j.listingId)?.name || j.listingName }));
+    .map((j) => ({
+      ...j,
+      listingName: properties.get(j.listingId)?.name || listingNames.get(j.listingId) || j.listingName,
+    }));
 
   return trackCleans(
     jobs,

@@ -92,6 +92,20 @@ test("booking failures: unassigned departure due tomorrow, and SDT not done afte
   assert.ok(afternoon.some((f) => f.clean.key === "200:2026-09-29:departure" && f.reason === "not_ready_for_check_in"));
 });
 
+test("cancelled long stays don't generate midstays", () => {
+  const jobs = deriveCleans([res({ arrivalDate: "2026-10-01", departureDate: "2026-10-20", status: "cancelled" })]);
+  assert.deepEqual(jobs.map((j) => `${j.type} ${j.cancelled}`), ["departure true"]);
+});
+
+test("missed turnovers older than yesterday aren't reported as failures", () => {
+  const jobs = deriveCleans([
+    res({ id: 1, arrivalDate: "2026-09-20", departureDate: "2026-09-25" }),
+    res({ id: 2, arrivalDate: "2026-09-25", departureDate: "2026-09-27" }),
+  ]);
+  const tracked = trackCleans(jobs, []);
+  assert.equal(findBookingFailures(tracked, { date: "2026-09-29", hour: 9 }).length, 0);
+});
+
 test("completed cleans are never failures", () => {
   const jobs = deriveCleans([res({ departureDate: "2026-09-30", arrivalDate: "2026-09-28" })]);
   const tracked = trackCleans(jobs, [

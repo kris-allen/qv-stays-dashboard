@@ -3,10 +3,10 @@
  * header row. Safe to run again: existing tabs and their data are left alone,
  * only missing tabs or missing header rows are added.
  *
- *   npx tsx --env-file=.env.local scripts/setup-sheet.ts
+ *   npx tsx --env-file=.env.local scripts/setup-sheet.mts
  */
 import { google } from "googleapis";
-import { TABS } from "../src/lib/sheet-schema";
+import { TABS } from "../src/lib/sheet-schema.ts";
 
 const auth = new google.auth.JWT({
   email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,

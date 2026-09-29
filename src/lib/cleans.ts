@@ -103,7 +103,8 @@ export function deriveCleans(reservations: Reservation[], rule: MidstayRule = DE
       sdt: !cancelled && arrivals.has(`${listingId}:${r.departureDate}`),
     });
 
-    if (isOwnerStay(r)) continue;
+    // A cancelled stay shows up once, as its cancelled departure clean.
+    if (isOwnerStay(r) || cancelled) continue;
 
     const nights = nightsBetween(r.arrivalDate, r.departureDate);
     for (let night = 1; night < nights; night++) {
@@ -145,18 +146,20 @@ export type BookingFailure = {
 /**
  * A booking failure is either a departure clean due by tomorrow with no SE
  * assigned, or a same day turnover whose clean still isn't done once the
- * next guest's check in time has passed.
+ * next guest's check in time has passed. Only yesterday onwards counts: older
+ * misses are history, not something ops can still act on.
  */
 export function findBookingFailures(
   cleans: TrackedClean[],
   now: { date: string; hour: number },
   checkInHour = 15,
 ): BookingFailure[] {
+  const yesterday = addDays(now.date, -1);
   const tomorrow = addDays(now.date, 1);
   const failures: BookingFailure[] = [];
 
   for (const clean of cleans) {
-    if (clean.cancelled || clean.completed) continue;
+    if (clean.cancelled || clean.completed || clean.date < yesterday) continue;
     const isDeparture = clean.type === "departure" || clean.type === "owner_departure";
 
     if (clean.sdt && (clean.date < now.date || (clean.date === now.date && now.hour >= checkInHour))) {

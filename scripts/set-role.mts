@@ -1,9 +1,9 @@
 /**
  * Give someone access: creates the Supabase user if needed and sets their role.
  *
- *   npx tsx --env-file=.env.local scripts/set-role.ts kris@nexdo.co.nz nex
- *   npx tsx --env-file=.env.local scripts/set-role.ts sumit@example.com se "Sumit Bishnoi"
- *   npx tsx --env-file=.env.local scripts/set-role.ts pm@quinovic.co.nz client "Quinovic Viaduct"
+ *   npx tsx --env-file=.env.local scripts/set-role.mts kris@nexdo.co.nz nex
+ *   npx tsx --env-file=.env.local scripts/set-role.mts sumit@example.com se "Sumit Bishnoi"
+ *   npx tsx --env-file=.env.local scripts/set-role.mts pm@quinovic.co.nz client "Quinovic Viaduct"
  *
  * The third argument is the SE name (as on the Cleans / SE_Roster tabs) or the
  * client org (as on the Properties tab).
@@ -12,7 +12,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const [email, role, name] = process.argv.slice(2);
 if (!email || !["nex", "se", "client"].includes(role)) {
-  console.error("Usage: set-role.ts <email> <nex|se|client> [SE name or client org]");
+  console.error("Usage: set-role.mts <email> <nex|se|client> [SE name or client org]");
   process.exit(1);
 }
 if ((role === "se" || role === "client") && !name) {

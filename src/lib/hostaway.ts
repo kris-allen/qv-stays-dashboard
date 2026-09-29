@@ -34,7 +34,7 @@ async function accessToken(): Promise<string> {
   return data.access_token;
 }
 
-/** Fetches every page of a Hostaway list endpoint. Cached for 5 minutes to stay inside rate limits. */
+/** Fetches every page of a Hostaway list endpoint. */
 async function getAll<T>(path: string, params: Record<string, string> = {}): Promise<T[]> {
   const token = await accessToken();
   const limit = 500;
@@ -42,9 +42,11 @@ async function getAll<T>(path: string, params: Record<string, string> = {}): Pro
 
   for (let offset = 0; ; offset += limit) {
     const query = new URLSearchParams({ ...params, limit: String(limit), offset: String(offset) });
+    // Raw pages run to several MB, past Next's 2 MB fetch cache limit, so the
+    // trimmed result is cached in memory instead (see `memo`).
     const res = await fetch(`${API}${path}?${query}`, {
       headers: { Authorization: `Bearer ${token}`, "Cache-control": "no-cache" },
-      next: { revalidate: 300 },
+      cache: "no-store",
     });
     if (!res.ok) throw new Error(`Hostaway ${path} failed (${res.status})`);
     const data = (await res.json()) as { result: T[]; count?: number };
@@ -54,23 +56,43 @@ async function getAll<T>(path: string, params: Record<string, string> = {}): Pro
   return all;
 }
 
+const memoStore = new Map<string, { expiresAt: number; value: Promise<unknown> }>();
+
+/** Shares one in-flight or recent result per key for `ttlMs`; failures aren't kept. */
+function memo<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
+  const hit = memoStore.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.value as Promise<T>;
+  const value = load();
+  memoStore.set(key, { expiresAt: Date.now() + ttlMs, value });
+  value.catch(() => memoStore.delete(key));
+  return value;
+}
+
+// Listings barely change and are the heaviest call (~8 MB), so they're kept longer.
 export function getListings(): Promise<Listing[]> {
-  return getAll<Listing>("/listings");
+  return memo("listings", 60 * 60_000, async () =>
+    (await getAll<Listing>("/listings")).map((l) => ({
+      id: l.id,
+      name: l.name,
+      internalListingName: l.internalListingName,
+      bedroomsNumber: l.bedroomsNumber,
+      bathroomsNumber: l.bathroomsNumber,
+      address: l.address,
+    })),
+  );
 }
 
 /** Reservations whose stay overlaps [from, to] (inclusive, YYYY-MM-DD). */
-export async function getReservations(from: string, to: string): Promise<Reservation[]> {
-  const rows = await getAll<Reservation>("/reservations", {
-    departureStartDate: from,
-    arrivalEndDate: to,
-  });
-  return rows.map((r) => ({
-    id: r.id,
-    listingMapId: r.listingMapId,
-    listingName: r.listingName,
-    arrivalDate: r.arrivalDate,
-    departureDate: r.departureDate,
-    status: r.status,
-    guestName: r.guestName,
-  }));
+export function getReservations(from: string, to: string): Promise<Reservation[]> {
+  return memo(`reservations:${from}:${to}`, 5 * 60_000, async () =>
+    (await getAll<Reservation>("/reservations", { departureStartDate: from, arrivalEndDate: to })).map((r) => ({
+      id: r.id,
+      listingMapId: r.listingMapId,
+      listingName: r.listingName,
+      arrivalDate: r.arrivalDate,
+      departureDate: r.departureDate,
+      status: r.status,
+      guestName: r.guestName,
+    })),
+  );
 }

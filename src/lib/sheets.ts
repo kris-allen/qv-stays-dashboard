@@ -19,17 +19,23 @@ function sheets(): sheets_v4.Sheets {
 
 const spreadsheetId = () => process.env.GOOGLE_SHEET_ID!;
 
-/** Reads a whole tab as header keyed rows. Deduped within a single request. */
-export const readTab = cache(async <T extends TabName>(tab: T): Promise<Row<T>[]> => {
-  const res = await sheets().spreadsheets.values.get({
+/** Every tab in one API call, once per request; each tab is a separate round trip otherwise. */
+const readAllTabs = cache(async (): Promise<Map<string, string[][]>> => {
+  const tabs = Object.keys(TABS);
+  const res = await sheets().spreadsheets.values.batchGet({
     spreadsheetId: spreadsheetId(),
-    range: `${tab}!A1:Z`,
+    ranges: tabs.map((tab) => `${tab}!A1:Z`),
   });
-  const [header = [], ...rows] = (res.data.values ?? []) as string[][];
+  return new Map(tabs.map((tab, i) => [tab, (res.data.valueRanges?.[i]?.values ?? []) as string[][]]));
+});
+
+/** Reads a whole tab as header keyed rows. */
+export async function readTab<T extends TabName>(tab: T): Promise<Row<T>[]> {
+  const [header = [], ...rows] = (await readAllTabs()).get(tab) ?? [];
   return rows
     .filter((r) => r.some((cell) => String(cell ?? "").trim() !== ""))
     .map((r) => Object.fromEntries(header.map((h, i) => [h, String(r[i] ?? "")])) as Row<T>);
-});
+}
 
 export async function appendRow<T extends TabName>(tab: T, values: Partial<Row<T>>): Promise<string> {
   const id = (values as Record<string, string>).id || crypto.randomUUID();

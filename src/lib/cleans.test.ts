@@ -6,6 +6,7 @@ import {
   findBookingFailures,
   incompleteFromYesterday,
   nowInAuckland,
+  midstayNights,
   type Reservation,
 } from "./cleans";
 
@@ -53,19 +54,36 @@ test("owner stays produce an owner departure clean and no midstays", () => {
   assert.deepEqual(jobs.map((j) => j.type), ["owner_departure"]);
 });
 
-test("midstays follow the rule, full clean wins over a top up on the same night", () => {
-  const jobs = deriveCleans(
-    [res({ arrivalDate: "2026-10-01", departureDate: "2026-10-15" })],
-    { topUpEveryNights: 3, cleanEveryNights: 7 },
-  );
-  const mid = jobs.filter((j) => j.type !== "departure").map((j) => `${j.date} ${j.type}`);
-  assert.deepEqual(mid, [
-    "2026-10-04 midstay_topup",
-    "2026-10-07 midstay_topup",
-    "2026-10-08 midstay_clean",
-    "2026-10-10 midstay_topup",
-    "2026-10-13 midstay_topup",
+test("midstay count is nights ÷ 7 rounded down", () => {
+  assert.equal(midstayNights(6).length, 0);
+  assert.equal(midstayNights(7).length, 1);
+  assert.equal(midstayNights(13).length, 1);
+  assert.equal(midstayNights(14).length, 2);
+});
+
+test("midstays are spread evenly, rounding up (16 nights → nights 6 and 11, per the API Calculator)", () => {
+  assert.deepEqual(midstayNights(16), [
+    { night: 6, type: "midstay_topup" },
+    { night: 11, type: "midstay_topup" },
   ]);
+});
+
+test("100 night stay: 14 midstays, full cleans on nights 27, 54 and 80", () => {
+  const plan = midstayNights(100);
+  assert.equal(plan.length, 14);
+  assert.deepEqual(
+    plan.filter((m) => m.type === "midstay_clean").map((m) => m.night),
+    [27, 54, 80],
+  );
+  assert.equal(plan.filter((m) => m.type === "midstay_topup").length, 11);
+});
+
+test("midstays become dated cleans on the stay, then the departure clean", () => {
+  const jobs = deriveCleans([res({ arrivalDate: "2026-10-01", departureDate: "2026-10-17" })]);
+  assert.deepEqual(
+    jobs.map((j) => `${j.date} ${j.type}`),
+    ["2026-10-07 midstay_topup", "2026-10-12 midstay_topup", "2026-10-17 departure"],
+  );
 });
 
 test("inquiries are ignored", () => {

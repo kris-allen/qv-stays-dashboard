@@ -44,15 +44,10 @@ export type TrackedClean = CleanJob & {
   completedAt: string | null;
 };
 
-export type MidstayRule = {
-  /** A top up every N nights of a stay (0 disables). */
-  topUpEveryNights: number;
-  /** A full midstay clean every N nights (0 disables). Takes priority over a top up on the same night. */
-  cleanEveryNights: number;
-};
-
-// Placeholder until Kris confirms the real rule.
-export const DEFAULT_MIDSTAY_RULE: MidstayRule = { topUpEveryNights: 3, cleanEveryNights: 7 };
+// Midstay rule from the Hostaway to vWork integration doc (section 4), matching
+// the EOD Report Generator's API Calculator tab.
+const NIGHTS_PER_MIDSTAY = 7;
+const FULL_CLEAN_EVERY = 4;
 
 const CANCELLED_STATUSES = new Set(["cancelled", "declined", "expired"]);
 const IGNORED_STATUSES = new Set(["inquiry", "inquiryPreapproved", "inquiryDenied", "inquiryTimeout", "inquiryNotPossible"]);
@@ -77,7 +72,7 @@ export function nightsBetween(arrival: string, departure: string): number {
   );
 }
 
-export function deriveCleans(reservations: Reservation[], rule: MidstayRule = DEFAULT_MIDSTAY_RULE): CleanJob[] {
+export function deriveCleans(reservations: Reservation[]): CleanJob[] {
   const relevant = reservations.filter((r) => !IGNORED_STATUSES.has(r.status));
 
   // Active arrivals by listing and date, for spotting same day turnovers.
@@ -106,10 +101,7 @@ export function deriveCleans(reservations: Reservation[], rule: MidstayRule = DE
     // A cancelled stay shows up once, as its cancelled departure clean.
     if (isOwnerStay(r) || cancelled) continue;
 
-    const nights = nightsBetween(r.arrivalDate, r.departureDate);
-    for (let night = 1; night < nights; night++) {
-      const type = midstayTypeForNight(night, rule);
-      if (!type) continue;
+    for (const { night, type } of midstayNights(nightsBetween(r.arrivalDate, r.departureDate))) {
       const date = addDays(r.arrivalDate, night);
       jobs.push({ ...base, key: cleanKey(listingId, date, type), date, type, sdt: false });
     }
@@ -118,10 +110,21 @@ export function deriveCleans(reservations: Reservation[], rule: MidstayRule = DE
   return jobs.sort((a, b) => a.date.localeCompare(b.date) || a.listingName.localeCompare(b.listingName));
 }
 
-function midstayTypeForNight(night: number, rule: MidstayRule): CleanType | null {
-  if (rule.cleanEveryNights > 0 && night % rule.cleanEveryNights === 0) return "midstay_clean";
-  if (rule.topUpEveryNights > 0 && night % rule.topUpEveryNights === 0) return "midstay_topup";
-  return null;
+/**
+ * One midstay per 7 nights (rounded down), spread evenly across the stay: the
+ * k-th lands on night ceil(nights / (count + 1) * k). Every 4th is a full
+ * midstay clean, the rest are top ups.
+ */
+export function midstayNights(nights: number): { night: number; type: CleanType }[] {
+  const count = Math.floor(nights / NIGHTS_PER_MIDSTAY);
+  return Array.from({ length: count }, (_, i) => {
+    const k = i + 1;
+    return {
+      // Multiply before dividing so exact nights (e.g. 100 × 12 / 15 = 80) don't drift to 80.0000001 and round up.
+      night: Math.ceil((nights * k) / (count + 1)),
+      type: k % FULL_CLEAN_EVERY === 0 ? "midstay_clean" : "midstay_topup",
+    };
+  });
 }
 
 export function trackCleans(jobs: CleanJob[], records: CleanRecord[]): TrackedClean[] {

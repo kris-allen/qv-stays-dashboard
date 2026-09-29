@@ -1,28 +1,11 @@
 import "server-only";
 import { cache } from "react";
-import {
-  addDays,
-  deriveCleans,
-  nowInAuckland,
-  trackCleans,
-  type MidstayRule,
-  DEFAULT_MIDSTAY_RULE,
-  type TrackedClean,
-} from "@/lib/cleans";
+import { addDays, deriveCleans, nowInAuckland, trackCleans, type TrackedClean } from "@/lib/cleans";
 import { getListings, getReservations } from "@/lib/hostaway";
 import { readTab } from "@/lib/sheets";
 import { CLOSED_STATUSES, ISSUE_TABS, type IssueTab, type Row } from "@/lib/sheet-schema";
 
 export type Property = { listingId: string; name: string; sizeCode: string; clientOrg: string };
-
-function midstayRule(): MidstayRule {
-  const topUp = Number(process.env.MIDSTAY_TOPUP_EVERY_NIGHTS);
-  const clean = Number(process.env.MIDSTAY_CLEAN_EVERY_NIGHTS);
-  return {
-    topUpEveryNights: Number.isFinite(topUp) && topUp >= 0 ? topUp : DEFAULT_MIDSTAY_RULE.topUpEveryNights,
-    cleanEveryNights: Number.isFinite(clean) && clean >= 0 ? clean : DEFAULT_MIDSTAY_RULE.cleanEveryNights,
-  };
-}
 
 export const getProperties = cache(async (): Promise<Map<string, Property>> => {
   const rows = await readTab("Properties");
@@ -46,7 +29,7 @@ export const getCleans = cache(async (from: string, to: string): Promise<Tracked
   ]);
   // Hostaway reservations don't carry the listing name, so fall back to the listings feed.
   const listingNames = new Map(listings.map((l) => [String(l.id), l.internalListingName || l.name]));
-  const jobs = deriveCleans(reservations, midstayRule())
+  const jobs = deriveCleans(reservations)
     .filter((j) => j.date >= from && j.date <= to)
     .map((j) => ({
       ...j,
